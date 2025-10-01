@@ -1,3 +1,6 @@
-dash
-pandas
-dash-bootstrap-components
+Faker==18.11.2
+requests==2.32.3
+numpy==1.26.4
+# pandas==2.2.2
+openpyxl==3.1.5
+Pillow==10.4.0
