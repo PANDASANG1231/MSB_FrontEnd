@@ -1,4 +1,5 @@
 images/
 *.csv
 download_images.py
-*.xlsx
+generate_fake_data.py
+**/*.xlsx

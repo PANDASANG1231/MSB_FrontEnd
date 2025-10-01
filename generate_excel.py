@@ -7,6 +7,23 @@ from openpyxl.utils import get_column_letter
 import os
 
 def generate_excel_report(csv_filename="fake_data.csv", images_dir="images", output_filename="report.xlsx"):
+    
+    def find_image_paths_by_din(images_base_dir, acct_no, din_number):
+        found_paths = []
+        # Iterate through all entries in the base images directory
+        for entry in os.listdir(images_base_dir):
+            full_entry_path = os.path.join(images_base_dir, entry)
+            # Check if it's a directory and starts with Acct_acct_no
+            if os.path.isdir(full_entry_path) and entry.startswith(f"Acct_{acct_no}"):
+                # Now search within this matching folder
+                for filename in os.listdir(full_entry_path):
+                    if filename.endswith(".jpg") or filename.endswith(".png"):
+                        file_din = os.path.splitext(filename)[0]
+                        if din_number in file_din:
+                            full_path = os.path.join(full_entry_path, filename)
+                            found_paths.append(full_path)
+        return found_paths
+
     # Read the fake data
     df = pd.read_csv(csv_filename)
 
@@ -57,9 +74,9 @@ def generate_excel_report(csv_filename="fake_data.csv", images_dir="images", out
             cell = sheet1.cell(row=r_idx, column=c_idx, value=value)
             if summary_df.columns[c_idx - 2] == "acct_no": # Check if it's the acct_no column
                 if value in acct_no_to_raw_data_row:
-                    # Create hyperlink to the first occurrence of this acct_no in the Raw Data sheet
+                    # Create hyperlink to the first occurrence of this acct_no in the Detail Data sheet
                     target_row = acct_no_to_raw_data_row[value] # Link to first row + 30
-                    cell.hyperlink = f"#'Raw Data'!A{target_row}" # Link to column A (start of the row)
+                    cell.hyperlink = f"#'Detail Data'!A{target_row}" # Link to column A (start of the row)
                     cell.font = Font(color="0000FF", underline="single") # Make it look like a link
             
 
@@ -91,11 +108,11 @@ def generate_excel_report(csv_filename="fake_data.csv", images_dir="images", out
         acct_no_to_summary_row[acct_no] = r_idx
 
     # Sheet 2: Raw Data
-    sheet2 = workbook.create_sheet(title="Raw Data")
+    sheet2 = workbook.create_sheet(title="Detail Data")
     sheet2.sheet_view.showGridLines = False # Remove gridlines
 
     # Write raw data title
-    sheet2.cell(row=1, column=2, value="Raw Fake Data") # Title starts at column 2
+    sheet2.cell(row=1, column=2, value="Detail Data") # Title starts at column 2
 
     # Sort df by acct_no
     df = df.sort_values(by="acct_no")
@@ -216,11 +233,15 @@ def generate_excel_report(csv_filename="fake_data.csv", images_dir="images", out
 
     # Iterate through the image_link_mapping to place images
     for (acct_no, din), row_num_in_images_sheet in image_link_mapping.items():
-        # Construct the filepath based on the new directory structure
-        filepath = os.path.join(images_dir, f"Acct_{acct_no}", f"{din}.jpg")
+        # Use the new function to find the image path
+        found_image_paths = find_image_paths_by_din(images_dir, acct_no, din)
         
-        if not os.path.exists(filepath): # Check if the image actually exists
-            print(f"Warning: Image not found at {filepath}")
+        filepath = None
+        if found_image_paths:
+            filepath = found_image_paths[0] # Take the first found image, or add logic to choose
+        
+        if not filepath or not os.path.exists(filepath): # Check if the image actually exists
+            print(f"Warning: Image not found for Acct_{acct_no} DIN: {din} at expected path or in subfolders.")
             continue
 
         img = Image(filepath)
@@ -236,7 +257,7 @@ def generate_excel_report(csv_filename="fake_data.csv", images_dir="images", out
         if (acct_no, din) in acct_no_din_to_raw_data_row:
             target_raw_data_row = acct_no_din_to_raw_data_row[(acct_no, din)]
             cell = sheet3.cell(row=current_row_for_image_placement, column=3, value="Link to Detail") # Column 3 is 'Link to Detail'
-            cell.hyperlink = f"#'Raw Data'!A{target_raw_data_row}" # Link to column A of the detail row
+            cell.hyperlink = f"#'Detail Data'!A{target_raw_data_row}" # Link to column A of the detail row
             cell.font = Font(color="0000FF", underline="single")
 
         # Add image to column D
