@@ -110,15 +110,28 @@ def generate_excel_report(csv_filename="fake_data.csv", images_dir="images", out
     # Create a mapping for image links before it's used
     image_link_mapping = {}
     current_row_for_image = 2 # Start image placement from row 2 on the Images sheet
-    for filename in os.listdir(images_dir):
-        if filename.endswith(".jpg") or filename.endswith(".png"):
-            filepath = os.path.join(images_dir, filename)
-            parts = filename.split('-')
-            acct_no = parts[0]
-            din = parts[1].split('.')[0]
-            image_link_mapping[(acct_no, din)] = current_row_for_image
-            current_row_for_image += 1 # Increment for the next image's row in the images sheet
+    
+    # Walk through the images directory to find images in subfolders
+    for root, dirs, files in os.walk(images_dir):
+        for filename in files:
+            if filename.endswith(".jpg") or filename.endswith(".png"):
+                filepath = os.path.join(root, filename)
+                
+                # Extract acct_no from the subfolder name and DIN from the filename
+                # Example: images/Acct_CPZO30297910765333/97610864.jpg
+                folder_name = os.path.basename(root)
+                acct_no = folder_name.replace("Acct_", "")
+                din = os.path.splitext(filename)[0] # Get DIN without .jpg extension
 
+                # Store the row where this image will be placed
+                image_link_mapping[(acct_no, din)] = current_row_for_image
+
+                # The image itself is added in the Sheet 3 loop, this part just builds the mapping
+                # current_row_for_image is incremented in the Sheet 3 loop as well, to keep consistent
+                current_row_for_image += 1 # Increment for the next image's row in the images sheet
+
+    # Reset current_row_for_image for the actual image placement loop
+    current_row_for_image = 2 
 
     # Write raw data header
     for col_idx, value in enumerate(df.columns, 2): # Start from column 2
@@ -196,46 +209,44 @@ def generate_excel_report(csv_filename="fake_data.csv", images_dir="images", out
     sheet3.column_dimensions[get_column_letter(4)].width = 50 # Column D for Image (adjust as needed)
 
     # Initialize current_row_for_image here
-    current_row_for_image = 2 # Start image placement from row 2
-    image_link_mapping = {}
+    # current_row_for_image = 2 # This is now initialized and reset above for mapping
+    # image_link_mapping = {} # This is also built above
     
-    for filename in os.listdir(images_dir):
-        if filename.endswith(".jpg") or filename.endswith(".png"):
-            filepath = os.path.join(images_dir, filename)
-            
-            # Extract acct_no and DIN from filename (e.g., acct_no-DIN.jpg)
-            parts = filename.split('-')
-            acct_no = parts[0]
-            din = parts[1].split('.')[0]
+    current_row_for_image_placement = 2 # Separate counter for actual image placement
 
-            # Store the row where this image will be placed
-            # The mapping still refers to where the image *is*, which is now col D
-            image_link_mapping[(acct_no, din)] = current_row_for_image
+    # Iterate through the image_link_mapping to place images
+    for (acct_no, din), row_num_in_images_sheet in image_link_mapping.items():
+        # Construct the filepath based on the new directory structure
+        filepath = os.path.join(images_dir, f"Acct_{acct_no}", f"{din}.jpg")
+        
+        if not os.path.exists(filepath): # Check if the image actually exists
+            print(f"Warning: Image not found at {filepath}")
+            continue
 
-            img = Image(filepath)
-            # Adjust image size if necessary (optional)
-            img.width = 400
-            img.height = 300
+        img = Image(filepath)
+        # Adjust image size if necessary (optional)
+        img.width = 400
+        img.height = 300
 
-            # Add acct_no and DIN to columns A and B
-            sheet3.cell(row=current_row_for_image, column=1, value=acct_no)
-            sheet3.cell(row=current_row_for_image, column=2, value=din)
+        # Add acct_no and DIN to columns A and B
+        sheet3.cell(row=current_row_for_image_placement, column=1, value=acct_no)
+        sheet3.cell(row=current_row_for_image_placement, column=2, value=din)
 
-            # Add 'Link to Detail' hyperlink to column C
-            if (acct_no, din) in acct_no_din_to_raw_data_row:
-                target_raw_data_row = acct_no_din_to_raw_data_row[(acct_no, din)]
-                cell = sheet3.cell(row=current_row_for_image, column=3, value="Link to Detail") # Column 3 is 'Link to Detail'
-                cell.hyperlink = f"#'Raw Data'!A{target_raw_data_row}" # Link to column A of the detail row
-                cell.font = Font(color="0000FF", underline="single")
+        # Add 'Link to Detail' hyperlink to column C
+        if (acct_no, din) in acct_no_din_to_raw_data_row:
+            target_raw_data_row = acct_no_din_to_raw_data_row[(acct_no, din)]
+            cell = sheet3.cell(row=current_row_for_image_placement, column=3, value="Link to Detail") # Column 3 is 'Link to Detail'
+            cell.hyperlink = f"#'Raw Data'!A{target_raw_data_row}" # Link to column A of the detail row
+            cell.font = Font(color="0000FF", underline="single")
 
-            # Add image to column D
-            img.anchor = get_column_letter(4) + str(current_row_for_image) # Anchor image to column D
-            sheet3.add_image(img)
+        # Add image to column D
+        img.anchor = get_column_letter(4) + str(current_row_for_image_placement) # Anchor image to column D
+        sheet3.add_image(img)
 
-            # Adjust row height to accommodate the image
-            sheet3.row_dimensions[current_row_for_image].height = img.height * 0.75 # Approximation to fit image height
-            
-            current_row_for_image += 1 # Move to the next row for the next image
+        # Adjust row height to accommodate the image
+        sheet3.row_dimensions[current_row_for_image_placement].height = img.height * 0.75 # Approximation to fit image height
+        
+        current_row_for_image_placement += 1 # Move to the next row for the next image
 
     # Save the workbook
     workbook.save(output_filename)

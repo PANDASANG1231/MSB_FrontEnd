@@ -14,9 +14,13 @@ def download_images(csv_filename="fake_data.csv", output_dir="images", num_image
             acct_no = row["acct_no"]
             din = row["DIN"]
             
+            # Create subfolder for each acct_no
+            acct_no_folder = os.path.join(output_dir, f"Acct_{acct_no}")
+            os.makedirs(acct_no_folder, exist_ok=True)
+
             image_url = "https://picsum.photos/400/300" # Random image URL
-            filename = f"{acct_no}-{din}.jpg"
-            filepath = os.path.join(output_dir, filename)
+            filename = f"{din}.jpg" # New naming convention
+            filepath = os.path.join(acct_no_folder, filename)
             
             try:
                 response = requests.get(image_url, stream=True)
@@ -24,9 +28,9 @@ def download_images(csv_filename="fake_data.csv", output_dir="images", num_image
                 with open(filepath, 'wb') as out_file:
                     for chunk in response.iter_content(chunk_size=8192):
                         out_file.write(chunk)
-                print(f"Downloaded {filename}")
+                print(f"Downloaded {filepath}") # Print full path for clarity
             except requests.exceptions.RequestException as e:
-                print(f"Error downloading {filename}: {e}")
+                print(f"Error downloading {filepath}: {e}")
 
 if __name__ == "__main__":
     download_images(num_images=10) # Download 10 images as a sample
